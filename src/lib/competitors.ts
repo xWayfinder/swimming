@@ -8411,8 +8411,9 @@ export type RaceMeetResult = {
 	distance: number;
 	stroke: string;
 	course: string;
-	// time: number; // string
-	time: string;
+	timeRaw: string;
+	timeHundredths: number;
+	timeExcelFormatted: string;
 	gender: 'Male' | 'Female';
 	date: Date; // string
 	meet: string;
@@ -8436,12 +8437,53 @@ type RaceMeetResultRaw = {
 };
 
 const raceMeeResultsMapper = (raw: RaceMeetResultRaw[]): RaceMeetResult[] => {
-	return raw.map((r) => ({
-		...r,
-		// time: parseFloat(r.time),
-		date: new Date(r.date),
-		gender: r.gender as 'Male' | 'Female'
-	}));
+	return raw.map((r) => {
+		const { time, ...rest } = r;
+		const timeHundredths = convertTimeToHundredths(r.time);
+		return {
+			time,
+			...rest,
+			timeRaw: r.time,
+			timeExcelFormatted: convertToTimeString(timeHundredths),
+			timeHundredths,
+			date: new Date(r.date),
+			gender: r.gender as 'Male' | 'Female'
+		};
+	});
+};
+
+export const convertTimeToHundredths = (timeString: string): number => {
+	const parts = timeString.split(':');
+	let minutes = 0,
+		seconds = 0;
+
+	if (parts.length === 2) {
+		// Time format is in minutes and seconds
+		minutes = parseInt(parts[0]);
+		seconds = parseFloat(parts[1]);
+	} else if (parts.length === 1) {
+		// Time format is only in seconds
+		seconds = parseFloat(parts[0]);
+	} else {
+		throw new Error('Invalid time format');
+	}
+
+	return Math.round((minutes * 60 + seconds) * 100);
+};
+
+export const convertToTimeString = (hundredths: number): string => {
+	const totalSeconds = Math.floor(hundredths / 100);
+	const splitSecond = hundredths % 100;
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds - hours * 3600) / 60);
+	const seconds = totalSeconds - hours * 3600 - minutes * 60;
+
+	const hoursStr = hours < 10 ? '0' + hours : hours.toString();
+	const minutesStr = minutes < 10 ? '0' + minutes : minutes.toString();
+	const secondsStr = seconds < 10 ? '0' + seconds : seconds.toString();
+	const splitSecondStr = splitSecond > 0 ? '.' + Math.floor(splitSecond / 10).toString() : '';
+
+	return `${hoursStr}:${minutesStr}:${secondsStr}${splitSecondStr}`;
 };
 
 export const fetchCompetitorResults = async (id: string) => {
